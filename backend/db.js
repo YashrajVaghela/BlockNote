@@ -1,12 +1,13 @@
 const { Pool } = require('pg');
 
-const pool = new Pool({
+// This logic checks if DATABASE_URL exists (on Render). 
+// If it doesn't, it falls back to your local settings.
+const isProduction = process.env.DATABASE_URL;
 
-  user: 'postgres',
-  host: 'localhost',
-  database: 'blocknote',
-  password: '1234',
-  port: 5432,
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL, 
+    
+  
 });
 
 module.exports = pool;
