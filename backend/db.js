@@ -6,7 +6,10 @@ const isProduction = process.env.DATABASE_URL;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL, 
-    
+    ssl: {
+    // This tells the driver to use SSL even if it's a self-signed certificate
+    rejectUnauthorized: false 
+  }
   
 });
 
