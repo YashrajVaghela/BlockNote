@@ -1,19 +1,20 @@
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000';
 
 async function request(path, options = {}) {
+  const { skipAuth, ...fetchOptions } = options;
   const headers = {
     'Content-Type': 'application/json',
-    ...(options.headers || {}),
+    ...(fetchOptions.headers || {}),
   };
 
   const accessToken = localStorage.getItem('accessToken');
-  if (accessToken) {
+  if (accessToken && !skipAuth) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
-    ...options,
+    ...fetchOptions,
     headers,
   });
 
@@ -52,6 +53,14 @@ export async function createDocument(title) {
   });
 }
 
+export async function getDocument(id) {
+  return request(`/api/documents/${id}`);
+}
+
+export async function getDocumentBlocks(id) {
+  return request(`/api/documents/${id}/blocks`);
+}
+
 export async function updateDocument(id, payload) {
   return request(`/api/documents/${id}`, {
     method: 'PATCH',
@@ -59,8 +68,28 @@ export async function updateDocument(id, payload) {
   });
 }
 
+export async function syncDocumentBlocks(id, payload, signal) {
+  return request(`/api/documents/${id}/blocks`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
 export async function deleteDocument(id) {
   return request(`/api/documents/${id}`, {
     method: 'DELETE',
+  });
+}
+
+export async function getSharedDocument(token) {
+  return request(`/api/documents/share/${token}`, {
+    skipAuth: true,
+  });
+}
+
+export async function getPublicDocuments() {
+  return request('/api/documents/public', {
+    skipAuth: true,
   });
 }

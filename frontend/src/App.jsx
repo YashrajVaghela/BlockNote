@@ -4,14 +4,14 @@ import { Home } from './pages/Home.jsx';
 import { Login } from './pages/Login.jsx';
 import { Register } from './pages/Register.jsx';
 import { Dashboard } from './pages/Dashboard.jsx';
+import { Editor } from './pages/Editor.jsx';
+import { ShareView } from './pages/ShareView.jsx';
 
 function App() {
-  const [authenticated, setAuthenticated] = useState(false);
+  const [authenticated, setAuthenticated] = useState(() =>
+    Boolean(localStorage.getItem('accessToken'))
+  );
   const navigate = useNavigate();
-
-  useEffect(() => {
-    setAuthenticated(Boolean(localStorage.getItem('accessToken')));
-  }, []);
 
   function handleAuthSuccess(tokens) {
     localStorage.setItem('accessToken', tokens.accessToken);
@@ -36,6 +36,11 @@ function App() {
         path="/dashboard"
         element={authenticated ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/login" replace />}
       />
+      <Route
+        path="/editor/:id"
+        element={authenticated ? <Editor /> : <Navigate to="/login" replace />}
+      />
+      <Route path="/share/:token" element={<ShareView />} />
       <Route path="*" element={<Navigate to={authenticated ? '/dashboard' : '/'} replace />} />
     </Routes>
   );

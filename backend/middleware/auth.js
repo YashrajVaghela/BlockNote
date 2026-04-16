@@ -1,8 +1,12 @@
 const jwt = require('jsonwebtoken');
 
-function authenticate(req, res, next) {
+function getBearerToken(req) {
   const authorization = req.headers.authorization;
-  const token = authorization && authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
+  return authorization && authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
+}
+
+function authenticate(req, res, next) {
+  const token = getBearerToken(req);
 
   if (!token) {
     return res.status(401).json({ error: 'Missing or invalid authorization token' });
@@ -17,4 +21,21 @@ function authenticate(req, res, next) {
   }
 }
 
-module.exports = { authenticate };
+function authenticateMaybeShare(req, res, next) {
+  const token = getBearerToken(req);
+
+  if (!token) {
+    return res.status(401).json({ error: 'Missing or invalid authorization token' });
+  }
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = payload;
+    return next();
+  } catch (error) {
+    req.shareToken = token;
+    return next();
+  }
+}
+
+module.exports = { authenticate, authenticateMaybeShare, getBearerToken };
