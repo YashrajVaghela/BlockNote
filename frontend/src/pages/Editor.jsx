@@ -304,7 +304,12 @@ export function Editor() {
                 } else if (block.type === 'divider') {
                     isEmpty = true; // Dividers are always "empty" for deletion purposes
                 } else {
-                    isEmpty = !block.content.text || block.content.text.length === 0;
+                    // Check actual DOM element content, not state
+                    if (block.type === 'code') {
+                        isEmpty = !e.target.value || e.target.value.trim().length === 0;
+                    } else {
+                        isEmpty = !e.target.innerText || e.target.innerText.trim().length === 0;
+                    }
                 }
 
                 if (isEmpty && currentIndex > 0) {
@@ -734,38 +739,52 @@ function BlockItem({ block, updateContent, onKeyDown, deleteBlock, addBlock, set
             case 'image':
                 return (
                     <div className="group/image relative rounded-[3rem] overflow-hidden bg-slate-50 border-2 border-dashed border-slate-100 p-12 text-center transition-all hover:border-sky-200 hover:bg-sky-50/10 my-8">
-                        {block.content.url ? (
-                            <div className="relative inline-block mx-auto group/imgwrapper">
-                                <img src={block.content.url} alt="Uploaded" className="mx-auto rounded-[2rem] max-h-[600px] shadow-2xl transition-transform duration-700 group-hover/imgwrapper:scale-[1.02]" />
-                                <button onClick={() => updateContent({ url: '' })} className="absolute top-6 right-6 rounded-3xl bg-black/60 backdrop-blur-xl p-4 text-white hover:bg-rose-500 transition-all opacity-0 group-hover/image:opacity-100 active:scale-95 shadow-xl">
-                                    <Trash2 size={24} />
-                                </button>
+                        <div className="space-y-6">
+                            {block.content.url && (
+                                <div className="relative inline-block mx-auto group/imgwrapper">
+                                    <img src={block.content.url} alt="Uploaded" className="mx-auto rounded-[2rem] max-h-[600px] shadow-2xl transition-transform duration-700 group-hover/imgwrapper:scale-[1.02]" />
+                                    <button onClick={() => updateContent({ url: '' })} className="absolute top-6 right-6 rounded-3xl bg-black/60 backdrop-blur-xl p-4 text-white hover:bg-rose-500 transition-all opacity-0 group-hover/image:opacity-100 active:scale-95 shadow-xl">
+                                        <Trash2 size={24} />
+                                    </button>
+                                </div>
+                            )}
+                            <div className="space-y-2">
+                                <p className="font-black text-slate-900 text-lg uppercase tracking-tight">Direct Asset Link</p>
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Supports PNG, JPG, GIF</p>
                             </div>
-                        ) : (
-                            <div className="space-y-6">
-                                <div className="mx-auto w-20 h-20 rounded-[2rem] bg-white shadow-xl shadow-slate-200/50 flex items-center justify-center text-sky-500">
-                                    <ImageIcon size={32} />
-                                </div>
-                                <div className="space-y-2">
-                                    <p className="font-black text-slate-900 text-lg uppercase tracking-tight">Direct Asset Link</p>
-                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Supports PNG, JPG, GIF</p>
-                                </div>
-                                <input
-                                    id={`block-${block.id}`}
-                                    type="text"
-                                    placeholder="https://source.unsplash.com/..."
-                                    className="w-full max-w-sm rounded-[1.5rem] border border-slate-100 bg-white px-6 py-4 text-sm font-semibold text-slate-900 outline-none transition-all focus:ring-8 focus:ring-sky-500/5 focus:border-sky-500 shadow-sm"
-                                    onChange={(e) => updateContent({ url: e.target.value })}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            // Already saved by onChange, but Enter can still trigger other things
-                                        } else {
+                            <input
+                                id={`block-${block.id}`}
+                                type="text"
+                                placeholder="https://source.unsplash.com/..."
+                                value={block.content.url || ''}
+                                className="w-full max-w-sm rounded-[1.5rem] border border-slate-100 bg-white px-6 py-4 text-sm font-semibold text-slate-900 outline-none transition-all focus:ring-8 focus:ring-sky-500/5 focus:border-sky-500 shadow-sm"
+                                onChange={(e) => updateContent({ url: e.target.value })}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        // Don't create new blocks in image input
+                                    } else if (e.key === 'Backspace') {
+                                        e.stopPropagation();
+                                        // Delete image block only if input is empty and cursor at start
+                                        if (!e.target.value && e.target.selectionStart === 0) {
+                                            e.preventDefault();
+                                            deleteBlock();
+                                        }
+                                        // Allow normal backspace if input has text
+                                    } else if (e.key === '/') {
+                                        // Check if input is empty and cursor at start
+                                        if (!e.target.value && e.target.selectionStart === 0) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            // Let parent handle slash menu
                                             onKeyDown(e, contentRef);
                                         }
-                                    }}
-                                />
-                            </div>
-                        )}
+                                        // If input has text, allow "/" to be typed normally
+                                    }
+                                }}
+                            />
+                        </div>
                     </div>
                 );
             default:
