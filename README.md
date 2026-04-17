@@ -29,110 +29,101 @@ You can test the app immediately without local setup: Click the frontend link ab
 
 ---
 
-## Local Development (with Docker or Manual)
+## Local Development Setup
 
-Choose one option below based on your preference.
+### Prerequisites
 
-### Option A: Docker Compose (Recommended - Easiest Setup) ⭐
+- **Node.js 18+** ([download](https://nodejs.org/))
+- **PostgreSQL** ([download](https://www.postgresql.org/download/))
 
-**Prerequisites:**
-- [Docker Desktop](https://www.docker.com/products/docker-desktop) (includes Docker & Docker Compose)
-
-**Quick Start (single command):**
+### Step 1: Create Database
 
 ```bash
-docker-compose up
+# Create the blocknote database
+createdb blocknote
 ```
 
-This will start all services automatically:
-- **PostgreSQL** on `localhost:5432` (database auto-initialized with schema)
-- **Backend** on `http://localhost:5000` (auto-migrated)
-- **Frontend** on `http://localhost:5173` (live-reloading)
+### Step 2: Backend Setup
 
-Then open your browser to **`http://localhost:5173`** → Sign up → Create document → Start editing!
-
-**Useful Docker Compose Commands:**
-
-| Command | Purpose |
-|---------|---------|
-| `docker-compose up` | Start all services (attach to logs) |
-| `docker-compose up -d` | Start all services in background |
-| `docker-compose logs -f` | View live logs from all containers |
-| `docker-compose logs -f backend` | View only backend logs |
-| `docker-compose down` | Stop all services & remove containers |
-| `docker-compose down -v` | Stop services + remove containers + volumes (clean slate) |
-| `docker-compose ps` | Show running containers |
-| `docker-compose exec backend npm run migrate` | Manually run migrations |
-| `docker-compose restart backend` | Restart a specific service |
-
-**Environment Configuration:**
-
-Docker Compose automatically sets these variables (see [docker-compose.yml](docker-compose.yml)):
-- Database: `postgres://blocknote_user:blocknote_password@postgres:5432/blocknote`
-- Frontend Origin: `http://localhost:5173`
-- API Base URL: `http://localhost:5000`
-
-To customize (e.g., JWT_SECRET), edit `docker-compose.yml` and change the `environment` section, then restart:
 ```bash
-docker-compose down && docker-compose up
+# Navigate to backend directory
+cd backend
+
+# Copy environment template and configure
+cp .env.example .env
+
+# Edit .env with your PostgreSQL credentials
+# Default: DATABASE_URL=postgres://postgres:password@localhost:5432/blocknote
+# Replace 'password' with your PostgreSQL password
+nano .env  # or use your preferred editor
 ```
 
-**Troubleshooting:**
+**Backend .env Template:**
+```
+DATABASE_URL=postgres://postgres:your_password@localhost:5432/blocknote
+JWT_SECRET=your-super-secret-jwt-key-make-it-random-and-long-min-32-chars
+FRONTEND_ORIGIN=http://localhost:5173
+PORT=5000
+NODE_ENV=development
+```
+
+```bash
+# Install dependencies
+npm install
+
+# Run database migrations (applies schema.sql)
+npm run migrate
+
+# Start backend server
+npm start
+```
+
+Backend will run on **`http://localhost:5000`**
+
+### Step 3: Frontend Setup (New Terminal)
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+Frontend will run on **`http://localhost:5173`**
+
+### Step 4: Access Application
+
+Open your browser to **`http://localhost:5173`**
+- Click "Sign up" to create an account
+- Create a new document
+- Start editing with the block editor!
+
+### Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| Port 5173 already in use | Kill process on port 5173 or change in docker-compose.yml ([Guide](https://stackoverflow.com/questions/11583562/cannot-start-server-listening-port-already-in-use)) |
-| Port 5000 already in use | Kill process on port 5000 or change in docker-compose.yml |
-| Port 5432 already in use | Kill process on port 5432 or change in docker-compose.yml |
-| Database connection error | Run `docker-compose down -v && docker-compose up` to reset database |
-| Frontend shows "Cannot reach backend" | Ensure backend service is healthy: `docker-compose logs backend` |
-| Slow first load | Normal - npm dependencies installing on first run. Subsequent loads are faster. |
+| Port 5000 already in use | Change `PORT` in `backend/.env` or kill the process: `lsof -ti:5000 \| xargs kill -9` |
+| Port 5173 already in use | Vite will auto-increment to 5174 or kill with: `lsof -ti:5173 \| xargs kill -9` |
+| Database connection error | Check `DATABASE_URL` in `.env`. Default user is `postgres`. Verify password. |
+| `createdb` command not found | PostgreSQL not in PATH. On Mac: `brew install postgresql`. On Windows: Add PostgreSQL `bin/` folder to PATH. |
+| "Forbidden" error when accessing document | JWT_SECRET mismatch. Restart backend after changing `.env`. |
+| Frontend shows "Cannot reach backend" | Ensure backend is running on `http://localhost:5000`. Check `VITE_API_BASE` in frontend `.env` |
 
-**Stopping & Cleaning Up:**
+### Stopping the Application
 
+**Backend:** Press `Ctrl+C` in backend terminal
+**Frontend:** Press `Ctrl+C` in frontend terminal
+
+To reset database and start fresh:
 ```bash
-# Stop all services (keeps data):
-docker-compose down
-
-# Stop everything and delete database (fresh start):
-docker-compose down -v
-
-# Remove all Docker containers related to this project:
-docker-compose down -v --remove-orphans
+dropdb blocknote
+createdb blocknote
+cd backend && npm run migrate
 ```
-
----
-
-### Option B: Manual Setup (Node.js + PostgreSQL locally)
-
-**Prerequisites:**
-- Node.js 18+ ([download](https://nodejs.org/))
-- PostgreSQL installed locally ([download](https://www.postgresql.org/download/))
-
-1. **Create PostgreSQL database:**
-   ```bash
-   createdb blocknote
-   ```
-
-2. **Backend setup:**
-   ```bash
-   cd backend
-   cp .env.example .env
-   # Edit .env with your PostgreSQL credentials (usually user=postgres, password=<your_password>)
-   npm install
-   npm run migrate  # Applies schema.sql
-   npm start        # Starts on http://localhost:5000
-   ```
-
-3. **Frontend setup (new terminal):**
-   ```bash
-   cd frontend
-   npm install
-   npm run dev      # Starts on http://localhost:5173
-   ```
-
-4. **Visit app:**
-   Open `http://localhost:5173` → Sign up → Create document → Start editing
 
 ---
 
@@ -155,46 +146,6 @@ Reference `backend/.env.example`:
 | Variable | Purpose | Example |
 |----------|---------|---------|
 | `VITE_API_BASE` | Backend API URL | `http://localhost:5000` |
-
----
-
-## Docker Setup (File Documentation)
-
-**Project Docker Files:**
-
-| File | Purpose |
-|------|---------|
-| `docker-compose.yml` | Orchestrates all services (PostgreSQL, backend, frontend) |
-| `backend/Dockerfile` | Builds backend Node.js image |
-| `backend/.dockerignore` | Excludes files from backend image |
-| `frontend/Dockerfile` | Builds frontend React/Vite image |
-| `frontend/.dockerignore` | Excludes files from frontend image |
-
-**Service Details:**
-
-| Service | Image | Port | Volume | Notes |
-|---------|-------|------|--------|-------|
-| **postgres** | `postgres:16-alpine` | `5432` | `postgres_data` (persistent) | Auto-imports `schema.sql` at startup |
-| **backend** | Built from `backend/Dockerfile` | `5000` | `./backend` (hot-reload via nodemon) | Waits for PostgreSQL health check |
-| **frontend** | Built from `frontend/Dockerfile` | `5173` | `./frontend` (Vite dev refresh) | Depends on backend startup |
-
-**Network:**
-- All services on `blocknote-network` bridge network for inter-service communication
-- Example: Backend connects to DB as `postgres://blocknote_user:blocknote_password@postgres:5432/blocknote`
-
-**Build & Image Details:**
-- Uses Node.js 18-alpine images (lightweight, ~300MB each)
-- Frontend runs `npm ci` (install from package-lock.json)
-- Backend runs `npm ci` (install from package-lock.json)
-- Both use bind mounts for development (instant reload on file changes)
-- `/app/node_modules` excluded from bind mount to prevent conflicts
-
-**Production Considerations:**
-- Remove `volumes` entries for production deployment (use built images only)
-- Set `NODE_ENV: production` in backend environment
-- Use a secrets manager instead of hardcoding JWT_SECRET
-- Add [reverse proxy](https://www.nginx.com/) (Nginx) for SSL/TLS termination
-- Scale using orchestration tools (Kubernetes, Docker Swarm)
 
 ---
 
