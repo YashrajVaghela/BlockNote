@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: blocknote-db
+    environment:
+      POSTGRES_USER: blocknote_user
+      POSTGRES_PASSWORD: blocknote_password
+      POSTGRES_DB: blocknote
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blocknote_user -d blocknote"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - blocknote-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: blocknote-backend
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://blocknote_user:blocknote_password@postgres:5432/blocknote
+      JWT_SECRET: your-super-secret-jwt-key-make-it-random-and-long
+      FRONTEND_ORIGIN: http://localhost:5173
+      PORT: 5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - blocknote-network
+    command: npm start
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: blocknote-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE: http://localhost:5000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - blocknote-network
+    command: npm run dev
+
+volumes:
+  postgres_data:
+
+networks:
+  blocknote-network:
+    driver: bridge

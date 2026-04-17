@@ -31,7 +31,83 @@ You can test the app immediately without local setup: Click the frontend link ab
 
 ## Local Development (with Docker or Manual)
 
-### Option A: Manual Setup
+Choose one option below based on your preference.
+
+### Option A: Docker Compose (Recommended - Easiest Setup) ⭐
+
+**Prerequisites:**
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) (includes Docker & Docker Compose)
+
+**Quick Start (single command):**
+
+```bash
+docker-compose up
+```
+
+This will start all services automatically:
+- **PostgreSQL** on `localhost:5432` (database auto-initialized with schema)
+- **Backend** on `http://localhost:5000` (auto-migrated)
+- **Frontend** on `http://localhost:5173` (live-reloading)
+
+Then open your browser to **`http://localhost:5173`** → Sign up → Create document → Start editing!
+
+**Useful Docker Compose Commands:**
+
+| Command | Purpose |
+|---------|---------|
+| `docker-compose up` | Start all services (attach to logs) |
+| `docker-compose up -d` | Start all services in background |
+| `docker-compose logs -f` | View live logs from all containers |
+| `docker-compose logs -f backend` | View only backend logs |
+| `docker-compose down` | Stop all services & remove containers |
+| `docker-compose down -v` | Stop services + remove containers + volumes (clean slate) |
+| `docker-compose ps` | Show running containers |
+| `docker-compose exec backend npm run migrate` | Manually run migrations |
+| `docker-compose restart backend` | Restart a specific service |
+
+**Environment Configuration:**
+
+Docker Compose automatically sets these variables (see [docker-compose.yml](docker-compose.yml)):
+- Database: `postgres://blocknote_user:blocknote_password@postgres:5432/blocknote`
+- Frontend Origin: `http://localhost:5173`
+- API Base URL: `http://localhost:5000`
+
+To customize (e.g., JWT_SECRET), edit `docker-compose.yml` and change the `environment` section, then restart:
+```bash
+docker-compose down && docker-compose up
+```
+
+**Troubleshooting:**
+
+| Issue | Solution |
+|-------|----------|
+| Port 5173 already in use | Kill process on port 5173 or change in docker-compose.yml ([Guide](https://stackoverflow.com/questions/11583562/cannot-start-server-listening-port-already-in-use)) |
+| Port 5000 already in use | Kill process on port 5000 or change in docker-compose.yml |
+| Port 5432 already in use | Kill process on port 5432 or change in docker-compose.yml |
+| Database connection error | Run `docker-compose down -v && docker-compose up` to reset database |
+| Frontend shows "Cannot reach backend" | Ensure backend service is healthy: `docker-compose logs backend` |
+| Slow first load | Normal - npm dependencies installing on first run. Subsequent loads are faster. |
+
+**Stopping & Cleaning Up:**
+
+```bash
+# Stop all services (keeps data):
+docker-compose down
+
+# Stop everything and delete database (fresh start):
+docker-compose down -v
+
+# Remove all Docker containers related to this project:
+docker-compose down -v --remove-orphans
+```
+
+---
+
+### Option B: Manual Setup (Node.js + PostgreSQL locally)
+
+**Prerequisites:**
+- Node.js 18+ ([download](https://nodejs.org/))
+- PostgreSQL installed locally ([download](https://www.postgresql.org/download/))
 
 1. **Create PostgreSQL database:**
    ```bash
@@ -42,10 +118,10 @@ You can test the app immediately without local setup: Click the frontend link ab
    ```bash
    cd backend
    cp .env.example .env
-   # Edit .env with your database credentials
+   # Edit .env with your PostgreSQL credentials (usually user=postgres, password=<your_password>)
    npm install
    npm run migrate  # Applies schema.sql
-   npm run dev      # Starts on http://localhost:5000
+   npm start        # Starts on http://localhost:5000
    ```
 
 3. **Frontend setup (new terminal):**
@@ -57,14 +133,6 @@ You can test the app immediately without local setup: Click the frontend link ab
 
 4. **Visit app:**
    Open `http://localhost:5173` → Sign up → Create document → Start editing
-
-#### Option B: Docker Compose (if docker-compose.yml exists)
-
-```bash
-docker-compose up
-```
-
-This starts PostgreSQL + backend + frontend together.
 
 ---
 
@@ -87,6 +155,46 @@ Reference `backend/.env.example`:
 | Variable | Purpose | Example |
 |----------|---------|---------|
 | `VITE_API_BASE` | Backend API URL | `http://localhost:5000` |
+
+---
+
+## Docker Setup (File Documentation)
+
+**Project Docker Files:**
+
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | Orchestrates all services (PostgreSQL, backend, frontend) |
+| `backend/Dockerfile` | Builds backend Node.js image |
+| `backend/.dockerignore` | Excludes files from backend image |
+| `frontend/Dockerfile` | Builds frontend React/Vite image |
+| `frontend/.dockerignore` | Excludes files from frontend image |
+
+**Service Details:**
+
+| Service | Image | Port | Volume | Notes |
+|---------|-------|------|--------|-------|
+| **postgres** | `postgres:16-alpine` | `5432` | `postgres_data` (persistent) | Auto-imports `schema.sql` at startup |
+| **backend** | Built from `backend/Dockerfile` | `5000` | `./backend` (hot-reload via nodemon) | Waits for PostgreSQL health check |
+| **frontend** | Built from `frontend/Dockerfile` | `5173` | `./frontend` (Vite dev refresh) | Depends on backend startup |
+
+**Network:**
+- All services on `blocknote-network` bridge network for inter-service communication
+- Example: Backend connects to DB as `postgres://blocknote_user:blocknote_password@postgres:5432/blocknote`
+
+**Build & Image Details:**
+- Uses Node.js 18-alpine images (lightweight, ~300MB each)
+- Frontend runs `npm ci` (install from package-lock.json)
+- Backend runs `npm ci` (install from package-lock.json)
+- Both use bind mounts for development (instant reload on file changes)
+- `/app/node_modules` excluded from bind mount to prevent conflicts
+
+**Production Considerations:**
+- Remove `volumes` entries for production deployment (use built images only)
+- Set `NODE_ENV: production` in backend environment
+- Use a secrets manager instead of hardcoding JWT_SECRET
+- Add [reverse proxy](https://www.nginx.com/) (Nginx) for SSL/TLS termination
+- Scale using orchestration tools (Kubernetes, Docker Swarm)
 
 ---
 
