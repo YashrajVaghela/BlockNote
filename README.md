@@ -31,10 +31,90 @@ You can test the app immediately without local setup: Click the frontend link ab
 
 ## Local Development Setup
 
-### Prerequisites
+Choose one option below based on your preference.
 
-- **Node.js 18+** ([download](https://nodejs.org/))
-- **PostgreSQL** ([download](https://www.postgresql.org/download/))
+### Option A: Docker Compose (Recommended - Easiest Setup) ⭐
+
+**Prerequisites:**
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) (includes Docker & Docker Compose)
+
+**Quick Start (single command):**
+
+```bash
+docker-compose up
+```
+
+This will start all services automatically:
+- **PostgreSQL** on `localhost:5432` (database auto-initialized with schema)
+- **Backend** on `http://localhost:5000` (auto-migrated)
+- **Frontend** on `http://localhost:5173` (live-reloading)
+
+Then open your browser to **`http://localhost:5173`** → Sign up → Create document → Start editing!
+
+**Useful Docker Compose Commands:**
+
+| Command | Purpose |
+|---------|---------|
+| `docker-compose up` | Start all services (attach to logs) |
+| `docker-compose up -d` | Start all services in background |
+| `docker-compose logs -f` | View live logs from all containers |
+| `docker-compose logs -f backend` | View only backend logs |
+| `docker-compose down` | Stop all services & remove containers |
+| `docker-compose down -v` | Stop services + remove containers + volumes (clean slate) |
+| `docker-compose ps` | Show running containers |
+| `docker-compose exec backend npm run migrate` | Manually run migrations |
+| `docker-compose restart backend` | Restart a specific service |
+
+**Environment Configuration:**
+
+Docker Compose automatically sets these variables (see [docker-compose.yml](docker-compose.yml)):
+- Database: `postgres://blocknote_user:blocknote_password@postgres:5432/blocknote`
+- Backend JWT_SECRET: `b7e3f9d4c2a1f8e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3` (⚠️ **For development only**)
+- Frontend Origin: `http://localhost:5173`
+- API Base URL: `http://localhost:5000`
+
+To customize (e.g., JWT_SECRET for production), edit `docker-compose.yml` and change the `environment` section, then restart:
+```bash
+# Generate a new strong JWT_SECRET
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Update docker-compose.yml with the output, then restart
+docker-compose down && docker-compose up
+```
+
+See [Security Best Practices](#security-best-practices) section below for JWT_SECRET guidance.
+
+**Troubleshooting:**
+
+| Issue | Solution |
+|-------|----------|
+| Port 5173 already in use | Kill process on port 5173 or change in docker-compose.yml |
+| Port 5000 already in use | Kill process on port 5000 or change in docker-compose.yml |
+| Port 5432 already in use | Kill process on port 5432 or change in docker-compose.yml |
+| Database connection error | Run `docker-compose down -v && docker-compose up` to reset database |
+| Frontend shows "Cannot reach backend" | Ensure backend service is healthy: `docker-compose logs backend` |
+| Slow first load | Normal - npm dependencies installing on first run. Subsequent loads are faster. |
+
+**Stopping & Cleaning Up:**
+
+```bash
+# Stop all services (keeps data):
+docker-compose down
+
+# Stop everything and delete database (fresh start):
+docker-compose down -v
+
+# Remove all Docker containers related to this project:
+docker-compose down -v --remove-orphans
+```
+
+---
+
+### Option B: Manual Setup (Node.js + PostgreSQL locally)
+
+**Prerequisites:**
+- [Node.js 18+](https://nodejs.org/)
+- [PostgreSQL](https://www.postgresql.org/download/)
 
 ### Step 1: Create Database
 
@@ -61,11 +141,20 @@ nano .env  # or use your preferred editor
 **Backend .env Template:**
 ```
 DATABASE_URL=postgres://postgres:your_password@localhost:5432/blocknote
-JWT_SECRET=your-super-secret-jwt-key-make-it-random-and-long-min-32-chars
+JWT_SECRET=b7e3f9d4c2a1f8e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3
 FRONTEND_ORIGIN=http://localhost:5173
 PORT=5000
 NODE_ENV=development
 ```
+
+⚠️ **IMPORTANT: Change JWT_SECRET for Production**
+- Default value above is for **development only**
+- Generate a new strong secret:
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  ```
+- Copy the output and add it to your `.env` file
+- Use a different secret for each environment (dev, staging, production)
 
 ```bash
 # Install dependencies
@@ -136,7 +225,7 @@ Reference `backend/.env.example`:
 | Variable | Purpose | Example |
 |----------|---------|---------|
 | `DATABASE_URL` | PostgreSQL connection | `postgres://user:pass@localhost/blocknote` |
-| `JWT_SECRET` | Secret key for token signing | `your-random-secret-key-min-32-chars` |
+| `JWT_SECRET` | Secret key for token signing (⚠️ **Generate unique per environment**) | `b7e3f9d4c2a1f8e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3` |
 | `FRONTEND_ORIGIN` | Allowed frontend URL for CORS | `http://localhost:5173` |
 | `PORT` | Backend listen port | `5000` |
 | `NODE_ENV` | Environment | `development` or `production` |
@@ -146,6 +235,94 @@ Reference `backend/.env.example`:
 | Variable | Purpose | Example |
 |----------|---------|---------|
 | `VITE_API_BASE` | Backend API URL | `http://localhost:5000` |
+
+---
+
+## Docker Setup (File Documentation)
+
+**Project Docker Files:**
+
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | Orchestrates all services (PostgreSQL, backend, frontend) |
+| `backend/Dockerfile` | Builds backend Node.js image |
+| `backend/.dockerignore` | Excludes files from backend image |
+| `frontend/Dockerfile` | Builds frontend React/Vite image |
+| `frontend/.dockerignore` | Excludes files from frontend image |
+
+**Service Details:**
+
+| Service | Image | Port | Volume | Notes |
+|---------|-------|------|--------|-------|
+| **postgres** | `postgres:16-alpine` | `5432` | `postgres_data` (persistent) | Auto-imports `schema.sql` at startup |
+| **backend** | Built from `backend/Dockerfile` | `5000` | `./backend` (hot-reload via nodemon) | Waits for PostgreSQL health check |
+| **frontend** | Built from `frontend/Dockerfile` | `5173` | `./frontend` (Vite dev refresh) | Depends on backend startup |
+
+**Network:**
+- All services on `blocknote-network` bridge network for inter-service communication
+- Example: Backend connects to DB as `postgres://blocknote_user:blocknote_password@postgres:5432/blocknote`
+
+**Build & Image Details:**
+- Uses Node.js 18-alpine images (lightweight, ~300MB each)
+- Backend runs `npm ci` (install from package-lock.json)
+- Frontend runs `npm ci` (install from package-lock.json)
+- Both use bind mounts for development (instant reload on file changes)
+- `/app/node_modules` excluded from bind mount to prevent conflicts
+
+**Production Considerations:**
+- Remove `volumes` entries for production deployment (use built images only)
+- Set `NODE_ENV: production` in backend environment
+- Use a secrets manager instead of hardcoding JWT_SECRET
+- Add reverse proxy (Nginx) for SSL/TLS termination
+- Scale using orchestration tools (Kubernetes, Docker Swarm)
+
+---
+
+## Security Best Practices
+
+### JWT_SECRET Management ⚠️
+
+**Never use the default JWT_SECRET in production!**
+
+#### Generate a Strong JWT_SECRET:
+
+```bash
+# Linux / macOS:
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Or use OpenSSL:
+openssl rand -hex 32
+
+# Or Python:
+python3 -c "import secrets; print(secrets.token_hex(32))"
+```
+
+#### Best Practices:
+1. **Generate unique secrets per environment** — development, staging, production should each have different secrets
+2. **Store securely** — Use environment variables, secrets manager (AWS Secrets Manager, HashiCorp Vault, etc.)
+3. **Never commit** — `.env` file should be in `.gitignore` (already configured)
+4. **Rotate regularly** — Change JWT_SECRET periodically and manually invalidate old tokens if needed
+5. **Minimum length** — Use at least 32 characters (256 bits recommended)
+
+#### For Development:
+```bash
+# .env file:
+JWT_SECRET=b7e3f9d4c2a1f8e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3
+```
+
+#### For Docker Compose:
+Edit `docker-compose.yml` and update the JWT_SECRET:
+```yaml
+backend:
+  environment:
+    JWT_SECRET: <your-generated-secret-here>
+```
+
+#### For Production:
+1. Generate a new secret using the command above
+2. Store in secrets manager or environment
+3. Update your deployment platform (Render, Railway, Vercel, etc.)
+4. Restart backend after updating
 
 ---
 
